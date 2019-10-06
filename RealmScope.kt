@@ -2,11 +2,11 @@ package cn.scent.common.realm
 
 import android.os.Handler
 import android.os.HandlerThread
-import kotlinx.coroutines.GlobalScope
-import kotlinx.coroutines.launch
+import kotlinx.coroutines.*
 import kotlin.coroutines.Continuation
 import kotlin.coroutines.ContinuationInterceptor
 import kotlin.coroutines.CoroutineContext
+import kotlin.coroutines.EmptyCoroutineContext
 
 class RealmScope private constructor():ContinuationInterceptor{
     override val key = ContinuationInterceptor
@@ -15,12 +15,23 @@ class RealmScope private constructor():ContinuationInterceptor{
     private lateinit var realmExt:RealmExt
     private lateinit var handler :Handler
     companion object{
-        fun launch(block:suspend (RealmExt)->Unit) {
+        fun launch(
+                   context: CoroutineContext = EmptyCoroutineContext,
+                   start: CoroutineStart = CoroutineStart.DEFAULT,
+                   block:suspend (RealmExt)->Unit): Job {
             val realmScope = RealmScope()
             realmScope.start()
-            GlobalScope.launch(realmScope) {
-                block.invoke(realmScope.realmExt)
-                realmScope.stop()
+            return GlobalScope.launch(context,start) {
+                val job=launch(realmScope) {
+                    block.invoke(realmScope.realmExt)
+                }
+                try {
+                    job.join()
+                } catch (e: Throwable) {
+                    throw e
+                } finally {
+                    realmScope.stop()
+                }
             }
         }
     }
